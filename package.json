@@ -1,0 +1,38 @@
+{
+  "name": "bittorrent",
+  "version": "0.0.1",
+  "description": "a BitTorrent peer",
+  "main": "",
+  "scripts": {
+    "build-ts": "./node_modules/.bin/tsc",
+    "start": "npm run serve",
+    "serve": "node dist/server.js",
+    "watch-node": "./node_modules/.bin/nodemon dist/server.js",
+    "watch-ts": "./node_modules/.bin/tsc -w",
+    "tslint": "./node_modules/.bin/tslint -c ./tslint.json 'src/**/*.ts'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tw7613781/bittorrent.git"
+  },
+  "keywords": [
+    "typescript",
+    "bittorrent"
+  ],
+  "author": "Max Tang",
+  "license": "Apache License 2.0",
+  "bugs": {
+    "url": "https://github.com/tw7613781/bittorrent/issues"
+  },
+  "homepage": "https://github.com/tw7613781/bittorrent#readme",
+  "devDependencies": {
+    "@types/node": "^13.7.7",
+    "nodemon": "^1.19.4",
+    "ts-node": "^8.4.1",
+    "tslint": "^5.20.0",
+    "typescript": "^3.6.4"
+  },
+  "dependencies": {
+    "bencode": "^2.0.1"
+  }
+}

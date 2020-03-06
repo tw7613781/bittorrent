@@ -33,6 +33,7 @@
     "typescript": "^3.6.4"
   },
   "dependencies": {
-    "bencode": "^2.0.1"
+    "bencode": "^2.0.1",
+    "bignum": "^0.13.1"
   }
 }

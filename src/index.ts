@@ -1,5 +1,10 @@
-import * as bencode from "bencode"
-import * as fs from "fs"
+import { TorrentParser } from "./torrent-parser"
+import { getPeers} from "./tracker"
 
-const torrent = bencode.decode(fs.readFileSync("test.torrent"))
-console.log(torrent.announce.toString("utf8"))
+const torrentParser = new TorrentParser("test.torrent")
+getPeers(torrentParser, (res) => {
+    let i
+    for (i = 0 ; i < res.peers.length; i++) {
+        console.log(res.peers[i].ip, res.peers[i].port)
+    }
+})

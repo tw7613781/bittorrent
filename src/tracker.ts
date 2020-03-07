@@ -11,14 +11,20 @@ export function getPeers(torrentParser: TorrentParser, callback) {
     const socket = dgram.createSocket("udp4")
     const url = torrentParser.url()
 
-    udpSend(socket, buildConnReq(), url)
+    udpSend(socket, buildConnReq(), url, () => {
+        console.log("sent build connecting udp request")
+    })
 
     socket.on("message", (res) => {
         if (respTyoe(res) === "connect") {
+            console.log("receive connect response")
             const connResp = parseConnResp(res)
             const announceReq = buildAnnounceReq(connResp.connectionId, torrentParser)
-            udpSend(socket, announceReq, url)
+            udpSend(socket, announceReq, url, () => {
+                console.log("sent announce udp request")
+            })
         } else if (respTyoe(res) === "announce") {
+            console.log("receive announce response")
             const announceResp = parseAnnounceResp(res)
             callback(announceResp)
         }
@@ -26,8 +32,10 @@ export function getPeers(torrentParser: TorrentParser, callback) {
 }
 
 function udpSend(socket, message, rawUrl, callback = noop) {
+    console.log(`rawUrl is ${rawUrl}`)
     const url = new URL(rawUrl)
-    socket.send(message, 0, message.length, Number(url.port), url.port, callback)
+    console.log(`sent to ${url.hostname}:${url.port}`)
+    socket.send(message, 0, message.length, Number(url.port), url.hostname, callback)
 }
 
 function respTyoe(res: Buffer): string {

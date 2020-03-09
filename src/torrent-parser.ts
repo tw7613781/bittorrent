@@ -36,7 +36,8 @@ export class TorrentParser {
                     for ( const subKey in info) {
                         const subValue = info[subKey]
                         if (subKey === "pieces") {
-                            logger.info(`${subKey} => ${subValue.toString("hex")}`)
+                            // logger.info(`${subKey} => ${subValue.toString("hex")}`)
+                            continue
                         } else if (subKey === "piece length") {
                             logger.info(`${subKey} => ${subValue / 1024} KB`)
                         } else if (subKey === "file") {
@@ -72,7 +73,8 @@ export class TorrentParser {
                     for ( const subKey in info) {
                         const subValue = info[subKey]
                         if (subKey === "pieces") {
-                            logger.info(`${subKey} => ${subValue.toString("hex")}`)
+                            // logger.info(`${subKey} => ${subValue.toString("hex")}`)
+                            continue
                         } else if (subKey === "piece length") {
                             logger.info(`${subKey} => ${subValue / 1024} KB`)
                         } else if (subKey === "files") {
@@ -112,7 +114,7 @@ export class TorrentParser {
     // 8 Bytes
     public size(): Buffer {
         const size = this.torrent.info.files ?
-        this.torrent.files.map( (file) => file.length ).reduce( (a, b) => (a + b) ) : this.torrent.info.length
+        this.torrent.info.files.map( (file) => file.length ).reduce( (a, b) => (a + b) ) : this.torrent.info.length
         return bignum.toBuffer(size, {size: 8})
     }
 

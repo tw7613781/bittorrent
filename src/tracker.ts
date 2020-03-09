@@ -1,30 +1,33 @@
 import * as crypto from "crypto"
 import * as dgram from "dgram"
+import { getLogger } from "log4js"
 import { URL } from "url"
 import { TorrentParser} from "./torrent-parser"
 import * as utils from "./utils"
 
 // tslint:disable-next-line: no-empty
 const noop = () => {}
+const logger = getLogger("getPeers")
 
 export function getPeers(torrentParser: TorrentParser, callback) {
     const socket = dgram.createSocket("udp4")
     const url = torrentParser.url()
 
     udpSend(socket, buildConnReq(), url, () => {
-        console.log("sent build connecting udp request")
+        logger.info("sent build connecting udp request")
     })
 
     socket.on("message", (res) => {
         if (respTyoe(res) === "connect") {
-            console.log("receive connect response")
+            logger.info("receive connect response")
             const connResp = parseConnResp(res)
             const announceReq = buildAnnounceReq(connResp.connectionId, torrentParser)
             udpSend(socket, announceReq, url, () => {
-                console.log("sent announce udp request")
+                logger.info("sent announce udp request")
             })
         } else if (respTyoe(res) === "announce") {
-            console.log("receive announce response")
+            logger.info("receive announce response")
+            logger.info(`announce msg size: ${res.length}`)
             const announceResp = parseAnnounceResp(res)
             callback(announceResp)
         }
@@ -32,9 +35,9 @@ export function getPeers(torrentParser: TorrentParser, callback) {
 }
 
 function udpSend(socket, message, rawUrl, callback = noop) {
-    console.log(`rawUrl is ${rawUrl}`)
+    logger.debug(`rawUrl is ${rawUrl}`)
     const url = new URL(rawUrl)
-    console.log(`sent to ${url.hostname}:${url.port}`)
+    logger.debug(`sent to ${url.hostname}:${url.port}`)
     socket.send(message, 0, message.length, Number(url.port), url.hostname, callback)
 }
 

@@ -21,11 +21,12 @@ configure({
 })
 const logger = getLogger("Main")
 
-const torrentParser = new TorrentParser("test4.torrent")
+const argv = process.argv.slice(2)
+const torrentParser = new TorrentParser(argv[0])
 torrentParser.show()
-// getPeers(torrentParser, (res) => {
-//     let i
-//     for (i = 0 ; i < res.peers.length; i++) {
-//         console.log(res.peers[i].ip, res.peers[i].port)
-//     }
-// })
+getPeers(torrentParser, (res) => {
+    let i
+    for (i = 0 ; i < res.peers.length; i++) {
+        logger.info(`peer ${i} => ${res.peers[i].ip}:${res.peers[i].port}`)
+    }
+})

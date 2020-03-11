@@ -19,7 +19,7 @@ export class TorrentParser {
 
     public show() {
         // tslint:disable-next-line: forin
-        logger.info("File Detail Info:")
+        logger.info("Parsing Torrent File...")
         logger.info("key => value")
         if (this.torrent.info.length) {
             // single file
@@ -105,7 +105,23 @@ export class TorrentParser {
 
     public url(): string {
         try {
-            return this.torrent.announce.toString("utf8")
+            return this.torrent.announce.toString()
+        } catch (e) {
+            throw new Error(`Torrent file format incorrect: {e}`)
+        }
+    }
+
+    public urls(): string[] {
+        try {
+            const urls = []
+            if (this.torrent["announce-list"]) {
+                this.torrent["announce-list"].toString().split(",").map( (ele) => {
+                    urls.push(ele)
+                })
+            } else {
+                urls.push(this.url())
+            }
+            return urls
         } catch (e) {
             throw new Error(`Torrent file format incorrect: {e}`)
         }

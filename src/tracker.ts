@@ -9,29 +9,42 @@ import * as utils from "./utils"
 const noop = () => {}
 const logger = getLogger("getPeers")
 
-export function getPeers(torrentParser: TorrentParser, callback) {
+// initial tiemout should be 15 seconds, n should be 1, repeat 2 times.
+// tslint:disable-next-line: max-line-length
+export async function getPeers(url: string, infoHash: Buffer, size: Buffer, timeout: number, n: number = 1): Promise<any> {
     const socket = dgram.createSocket("udp4")
-    const url = torrentParser.url()
+    logger.info(`GetPeers ===> from tracker${url} ===> the No.${n} times request with timeout: ${timeout / 1000} seconds`)
 
-    udpSend(socket, buildConnReq(), url, () => {
-        logger.info("sent build connecting udp request")
-    })
-
-    socket.on("message", (res) => {
-        if (respTyoe(res) === "connect") {
-            logger.info("receive connect response")
-            const connResp = parseConnResp(res)
-            const announceReq = buildAnnounceReq(connResp.connectionId, torrentParser)
-            udpSend(socket, announceReq, url, () => {
-                logger.info("sent announce udp request")
+    try {
+        return await new Promise<any>( (resolved, rejected) => {
+            setTimeout( () => rejected("Timeout"), timeout)
+            udpSend(socket, buildConnReq(), url, () => {
+                logger.info("sent build connecting udp request")
             })
-        } else if (respTyoe(res) === "announce") {
-            logger.info("receive announce response")
-            logger.info(`announce msg size: ${res.length}`)
-            const announceResp = parseAnnounceResp(res)
-            callback(announceResp)
+            socket.on("message", (res) => {
+                if (respTyoe(res) === "connect") {
+                    logger.info("receive connect response")
+                    const connResp = parseConnResp(res)
+                    const announceReq = buildAnnounceReq(connResp.connectionId, infoHash, size)
+                    udpSend(socket, announceReq, url, () => {
+                        logger.info("sent announce udp request")
+                    })
+                } else if (respTyoe(res) === "announce") {
+                    logger.info("receive announce response")
+                    const announceResp = parseAnnounceResp(res)
+                    resolved(announceResp)
+                }
+            })
+        })
+    } catch (e) {
+        if ( e === "Timeout" && n === 1) {
+            return getPeers(url, infoHash, size, timeout * 2 , n + 1 )
+        } else {
+            throw e
         }
-    })
+    } finally {
+        socket.close()
+    }
 }
 
 function udpSend(socket, message, rawUrl, callback = noop) {
@@ -95,7 +108,7 @@ function parseConnResp(res: Buffer) {
 // 92      32-bit integer  num_want        -1 // default
 // 96      16-bit integer  port            ? // should be betwee 6881 to 6889
 // 98 Byte Total
-function buildAnnounceReq(connId: Buffer, torrentParser: TorrentParser, port = 6881): Buffer {
+function buildAnnounceReq(connId: Buffer, infoHash: Buffer, size: Buffer, port = 6881): Buffer {
     // allocate 98 Byte buffer without initilize
     const buf = Buffer.allocUnsafe(98)
     // connection_id 8 Bytes
@@ -105,13 +118,13 @@ function buildAnnounceReq(connId: Buffer, torrentParser: TorrentParser, port = 6
     // transaction_id 4 Bytes
     crypto.randomBytes(4).copy(buf, 12)
     // info_hash 20 Bytes
-    torrentParser.infoHash().copy(buf, 16)
+    infoHash.copy(buf, 16)
     // peer_id 20 Bytes
     utils.getId().copy(buf, 36)
     // downloaded 8 Bytes
     Buffer.alloc(8).copy(buf, 56)
     // left 8 Bytes
-    torrentParser.size().copy(buf, 64)
+    size.copy(buf, 64)
     // uploaded 8 Bytes
     Buffer.alloc(8).copy(buf, 72)
     // event 4 Bytes

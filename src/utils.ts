@@ -22,3 +22,8 @@ export function group(buf: Buffer, groupSize): Buffer[] {
     }
     return groups
 }
+
+export function removeDuplicats(peers) {
+    // tslint:disable-next-line: max-line-length
+    return peers.filter( (peer, index, self) => index === self.findIndex( (p) => p.ip === peer.ip && p.port === peer.port ) )
+}

@@ -2,7 +2,6 @@ import * as crypto from "crypto"
 import * as dgram from "dgram"
 import { getLogger } from "log4js"
 import { URL } from "url"
-import { TorrentParser} from "./torrent-parser"
 import * as utils from "./utils"
 
 // tslint:disable-next-line: no-empty
@@ -11,26 +10,26 @@ const logger = getLogger("getPeers")
 
 // initial tiemout should be 15 seconds, n should be 1, repeat 2 times.
 // tslint:disable-next-line: max-line-length
-export async function getPeers(url: string, infoHash: Buffer, size: Buffer, timeout: number, n: number = 1): Promise<any> {
+export async function getPeers(url: string, infoHash: Buffer, size: Buffer, timeout: number, n: number = 1) {
     const socket = dgram.createSocket("udp4")
-    logger.info(`GetPeers ===> from tracker${url} ===> the No.${n} times request with timeout: ${timeout / 1000} seconds`)
+    logger.info(`GetPeers ===> from tracker ${url} ===> the No.${n} times request with timeout: ${timeout / 1000} seconds`)
 
     try {
         return await new Promise<any>( (resolved, rejected) => {
             setTimeout( () => rejected("Timeout"), timeout)
             udpSend(socket, buildConnReq(), url, () => {
-                logger.info("sent build connecting udp request")
+                logger.debug("sent build connecting udp request")
             })
             socket.on("message", (res) => {
                 if (respTyoe(res) === "connect") {
-                    logger.info("receive connect response")
+                    logger.debug("receive connect response")
                     const connResp = parseConnResp(res)
                     const announceReq = buildAnnounceReq(connResp.connectionId, infoHash, size)
                     udpSend(socket, announceReq, url, () => {
-                        logger.info("sent announce udp request")
+                        logger.debug("sent announce udp request")
                     })
                 } else if (respTyoe(res) === "announce") {
-                    logger.info("receive announce response")
+                    logger.debug("receive announce response")
                     const announceResp = parseAnnounceResp(res)
                     resolved(announceResp)
                 }

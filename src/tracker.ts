@@ -2,11 +2,49 @@ import * as crypto from "crypto"
 import * as dgram from "dgram"
 import { getLogger } from "log4js"
 import { URL } from "url"
+import { TorrentParser } from "./torrent-parser"
 import * as utils from "./utils"
 
 // tslint:disable-next-line: no-empty
 const noop = () => {}
 const logger = getLogger("getPeers")
+
+export async function getAllPeers(torrentParser: TorrentParser) {
+    const urls = torrentParser.urls()
+    logger.info(`Get ${urls.length} trarkers, going to request to all of them`)
+    const peers = []
+
+    let count = 0
+    await new Promise( (resolve) => {
+        urls.forEach( async (url) => {
+            try {
+                const res = await getPeers(url, torrentParser.infoHash(), torrentParser.size(), 15 * 1000)
+                for (const peer of res.peers) {
+                    peers.push(peer)
+                }
+            } catch (e) {
+                logger.warn(e)
+            } finally {
+                count += 1
+                if ( count === urls.length ) {
+                    resolve()
+                }
+            }
+        })
+    })
+
+    if (peers.length === 0) {
+        throw new Error("There are no peers info returned")
+    }
+
+    const uniquePeers = utils.removeDuplicats(peers)
+    logger.info(`unique peers ${uniquePeers.length}`)
+
+    for (let i = 0 ; i < uniquePeers.length; i++) {
+        logger.debug(`peer ${i} => ${uniquePeers[i].ip}:${uniquePeers[i].port}`)
+    }
+    return peers
+}
 
 // initial tiemout should be 15 seconds, n should be 1, repeat 2 times.
 // tslint:disable-next-line: max-line-length

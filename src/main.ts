@@ -1,4 +1,5 @@
 import { configure, getLogger } from "log4js"
+import { download } from "./download"
 import { TorrentParser } from "./torrent-parser"
 import { getAllPeers} from "./tracker"
 
@@ -25,7 +26,11 @@ async function main() {
     const argv = process.argv.slice(2)
     const torrentParser = new TorrentParser(argv[0])
     torrentParser.show()
-    await getAllPeers(torrentParser)
+    const peers = await getAllPeers(torrentParser)
+
+    peers.forEach( (peer) => {
+        download(peer)
+    })
 }
 
 main().catch((e) => {

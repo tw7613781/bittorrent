@@ -15,9 +15,11 @@ const clientName = "-GL0001-"
 export class Client {
 
     private id: Buffer
+    private torrentParser: TorrentParser
 
-    constructor() {
+    constructor(torrentParser: TorrentParser) {
         this.id = this.getId()
+        this.torrentParser = torrentParser
     }
 
     public getId() {
@@ -28,8 +30,8 @@ export class Client {
         return this.id
     }
 
-    public async getAllPeers(torrentParser: TorrentParser) {
-        const urls = torrentParser.urls()
+    public async getAllPeers() {
+        const urls = this.torrentParser.urls()
         logger.info(`Get ${urls.length} trarkers, going to request to all of them`)
         const peers = []
 
@@ -37,7 +39,8 @@ export class Client {
         await new Promise( (resolve) => {
             urls.forEach( async (url) => {
                 try {
-                    const res = await this.getPeers(url, torrentParser.infoHash(), torrentParser.size(), 15 * 1000)
+                    // tslint:disable-next-line: max-line-length
+                    const res = await this.getPeers(url, this.torrentParser.infoHash(), this.torrentParser.size(), 15 * 1000)
                     for (const peer of res.peers) {
                         peers.push(peer)
                     }

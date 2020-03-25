@@ -26,8 +26,8 @@ async function main() {
     const argv = process.argv.slice(2)
     const torrentParser = new TorrentParser(argv[0])
     torrentParser.show()
-    const client = new Client()
-    const peers = await client.getAllPeers(torrentParser)
+    const client = new Client(torrentParser)
+    const peers = await client.getAllPeers()
 
     peers.forEach( (peer) => {
         download(peer)

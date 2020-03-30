@@ -1,6 +1,6 @@
 import { configure, getLogger } from "log4js"
 import { Client } from "./client"
-import { download } from "./download"
+import { Message } from "./message"
 import { TorrentParser } from "./torrent-parser"
 
 configure({
@@ -27,10 +27,11 @@ async function main() {
     const torrentParser = new TorrentParser(argv[0])
     torrentParser.show()
     const client = new Client(torrentParser)
+    const message = new Message(client, torrentParser)
     const peers = await client.getAllPeers()
 
     peers.forEach( (peer) => {
-        download(peer)
+        client.download(peer, message)
     })
 }
 

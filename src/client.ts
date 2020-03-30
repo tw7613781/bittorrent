@@ -1,7 +1,9 @@
 import * as crypto from "crypto"
 import * as dgram from "dgram"
 import { getLogger } from "log4js"
+import * as net from "net"
 import { URL } from "url"
+import { Message } from "./message"
 import { TorrentParser } from "./torrent-parser"
 import * as utils from "./utils"
 
@@ -28,6 +30,20 @@ export class Client {
             Buffer.from(clientName).copy(this.id, 0)
         }
         return this.id
+    }
+
+    public download(peer, message) {
+        const socket = new net.Socket()
+        socket.on("error", (err) => {
+            logger.warn(err)
+        })
+        socket.connect( peer.port, peer.ip, () => {
+            logger.info(`connected with ${peer.ip}:${peer.port}`)
+            socket.write(message.buildHandshake())
+        })
+        this.onWholeMsg(socket, (data: Buffer) => {
+             this.msgHandler(data, socket, message)
+        })
     }
 
     public async getAllPeers() {
@@ -224,4 +240,76 @@ export class Client {
         }
     }
 
+    private async onWholeMsg(socket, callback) {
+        let savedBuf = Buffer.alloc(0)
+        let handshake = true
+        socket.on("data", (recvBuf) => {
+            // msgLen calculates the length of a whole message
+            const msgLen = () => handshake ? savedBuf.readUInt8(0) + 49 : savedBuf.readInt32BE(0) + 4
+            savedBuf = Buffer.concat([savedBuf, recvBuf])
+            while (savedBuf.length >= 4 && savedBuf.length >= msgLen()) {
+                    callback(savedBuf.slice(0, msgLen()))
+                    savedBuf = savedBuf.slice(msgLen())
+                    handshake = false
+                }
+          })
+    }
+
+    private msgHandler(msg, socket, message) {
+        if (this.isHandshake(msg)) {
+            socket.write(message.buildInterested())
+        } else {
+            const m = this.parse(msg)
+            if (m.id === 0) { this.chokeHandler() }
+            if (m.id === 1) { this.unchokeHandler() }
+            if (m.id === 4) { this.haveHandler() }
+            if (m.id === 5) { this.bitfieldHandler() }
+            if (m.id === 7) { this.pieceHandler() }
+        }
+    }
+
+    private isHandshake(msg) {
+        return msg.length === msg.readUInt8(0) + 49 && msg.toString("uft8", 1) === "BitTorrent protocol"
+    }
+
+    private parse(msg) {
+        const id = msg.length > 4 ? msg.readUInt8(4) : undefined
+        let payload = msg.legnth > 5 ? msg.slice(5) : undefined
+        if (id === 6 || id === 7 || id === 8) {
+            const rest = payload.slice(8)
+            payload = {
+                index: payload.readInt32BE(0),
+                // tslint:disable-next-line: object-literal-sort-keys
+                begin: payload.readInt32BE(4),
+            }
+            payload[id === 7 ? "block" : "length"] = rest
+        }
+
+        return {
+            size: msg.readInt32BE(0),
+            // tslint:disable-next-line: object-literal-sort-keys
+            id,
+            payload,
+        }
+    }
+
+    private chokeHandler() {
+
+    }
+
+    private unchokeHandler() {
+
+    }
+
+    private haveHandler() {
+
+    }
+
+    private bitfieldHandler() {
+
+    }
+
+    private pieceHandler() {
+
+    }
 }

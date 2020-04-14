@@ -28,11 +28,7 @@ async function main() {
     torrentParser.show()
     const client = new Client(torrentParser)
     const message = new Message(client, torrentParser)
-    const peers = await client.getAllPeers()
-
-    peers.forEach( (peer) => {
-        client.download(peer, message)
-    })
+    await client.downloadAll(message, "file")
 }
 
 main().catch((e) => {

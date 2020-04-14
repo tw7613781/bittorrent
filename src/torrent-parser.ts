@@ -6,6 +6,8 @@ import { getLogger } from "log4js"
 
 const logger = getLogger("TorrentParser")
 
+export const BLOCK_LEN = Math.pow(2, 14)
+
 export class TorrentParser {
     public torrent: any
 
@@ -142,5 +144,28 @@ export class TorrentParser {
         } catch (e) {
             throw new Error(`Torrent file format incorrect: {e}`)
         }
+    }
+
+    public pieceLen(pieceIndex) {
+        const totalLength = bignum.fromBuffer(this.size()).toNumber()
+        const pieceLength = this.torrent.info["piece length"]
+
+        const lastPieceLength = totalLength % pieceLength
+        const lastPieceIndex = Math.floor(totalLength / pieceIndex)
+
+        return lastPieceIndex === pieceLength ? lastPieceLength : pieceLength
+    }
+
+    public blocksPerPiece(pieceIndex) {
+        const pieceLength = this.pieceLen(pieceIndex)
+        return Math.ceil( pieceLength / BLOCK_LEN)
+    }
+
+    public blockLen(pieceIndex, blockIndex) {
+        const pieceLength = this.pieceLen(pieceIndex)
+        const lastPieceLength = pieceLength % BLOCK_LEN
+        const lastPieceIndex = Math.floor(pieceLength / BLOCK_LEN)
+
+        return blockIndex === lastPieceIndex ? lastPieceLength : BLOCK_LEN
     }
 }

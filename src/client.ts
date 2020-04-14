@@ -1,9 +1,12 @@
 import * as crypto from "crypto"
 import * as dgram from "dgram"
+import * as fs from "fs"
 import { getLogger } from "log4js"
 import * as net from "net"
 import { URL } from "url"
 import { Message } from "./message"
+import { Pieces } from "./pieces"
+import { Queue } from "./queue"
 import { TorrentParser } from "./torrent-parser"
 import * as utils from "./utils"
 
@@ -32,7 +35,17 @@ export class Client {
         return this.id
     }
 
-    public download(peer, message) {
+    public async downloadAll(message: Message, path) {
+        // The torrent.info.pieces is a buffer that contains 20-byte SHA-1 hash of each piece
+        const pieces = new Pieces(this.torrentParser)
+        const file = fs.openSync(path, "w")
+        const peers = await this.getAllPeers()
+        peers.forEach( (peer) => {
+            this.download(peer, message, pieces, file)
+        })
+    }
+
+    private download(peer, message, pieces, file) {
         const socket = new net.Socket()
         socket.on("error", (err) => {
             logger.warn(err)
@@ -41,12 +54,13 @@ export class Client {
             logger.info(`connected with ${peer.ip}:${peer.port}`)
             socket.write(message.buildHandshake())
         })
+        const queue = new Queue(this.torrentParser)
         this.onWholeMsg(socket, (data: Buffer) => {
-             this.msgHandler(data, socket, message)
+             this.msgHandler(data, socket, pieces, queue, message, file)
         })
     }
 
-    public async getAllPeers() {
+    private async getAllPeers() {
         const urls = this.torrentParser.urls()
         logger.info(`Get ${urls.length} trarkers, going to request to all of them`)
         const peers = []
@@ -255,21 +269,21 @@ export class Client {
           })
     }
 
-    private msgHandler(msg, socket, message) {
-        if (this.isHandshake(msg)) {
+    private msgHandler(data, socket, pieces, queue, message, file) {
+        if (this.isHandshake(data)) {
             socket.write(message.buildInterested())
         } else {
-            const m = this.parse(msg)
-            if (m.id === 0) { this.chokeHandler() }
-            if (m.id === 1) { this.unchokeHandler() }
-            if (m.id === 4) { this.haveHandler() }
-            if (m.id === 5) { this.bitfieldHandler() }
-            if (m.id === 7) { this.pieceHandler() }
+            const m = this.parse(data)
+            if (m.id === 0) { this.chokeHandler(socket) }
+            if (m.id === 1) { this.unchokeHandler(socket, pieces, queue, message) }
+            if (m.id === 4) { this.haveHandler(socket, pieces, queue, m.payload, message) }
+            if (m.id === 5) { this.bitfieldHandler(socket, pieces, queue, m.payload, message) }
+            if (m.id === 7) { this.pieceHandler(socket, pieces, queue, message, file, m.payload) }
         }
     }
 
     private isHandshake(msg) {
-        return msg.length === msg.readUInt8(0) + 49 && msg.toString("uft8", 1) === "BitTorrent protocol"
+        return msg.length === msg.readUInt8(0) + 49 && msg.toString("uft8", 1, 20) === "BitTorrent protocol"
     }
 
     private parse(msg) {
@@ -293,23 +307,66 @@ export class Client {
         }
     }
 
-    private chokeHandler() {
-
+    private chokeHandler(socket) {
+        socket.end()
     }
 
-    private unchokeHandler() {
-
+    private unchokeHandler(socket, pieces, queue, message) {
+        queue.choked = false
+        this.requestPiece(socket, pieces, queue, message)
     }
 
-    private haveHandler() {
-
+    private haveHandler(socket, pieces, queue, payload: Buffer, message: Message) {
+        const pieceIndex = payload.readUInt32BE(0)
+        const queueEmpty = queue.length === 0
+        queue.queue(pieceIndex)
+        if (queueEmpty) {
+            this.requestPiece(socket, message, pieces, queue)
+        }
     }
 
-    private bitfieldHandler() {
-
+    private bitfieldHandler(socket, pieces, queue, payload: Buffer, message: Message) {
+        const queueEmpty = queue.length === 0
+        payload.forEach( (byte, i) => {
+            for (let j = 0; j < 8; j++) {
+                if (byte % 2) { queue.queue(i * 8 + 7 - j) }
+                byte = Math.floor(byte / 2)
+            }
+        })
+        if (queueEmpty) { this.requestPiece(socket, message, pieces, queue) }
     }
 
-    private pieceHandler() {
+    private pieceHandler(socket, pieces, queue, message, file, pieceResp) {
+        pieces.printPercentDone()
+        pieces.addReceived(pieceResp)
 
+        const offset = pieceResp.index * this.torrentParser.torrent.info["piece length"] + pieceResp.begin
+        fs.write(file, pieceResp.block, 0, pieceResp.block.length, offset, () => {
+            logger.debug("write to file")
+        })
+
+        if (pieces.isDone()) {
+            socket.end()
+            logger.info("Done")
+            try {
+                fs.closeSync(file)
+            } catch (e) {
+                logger.error(e)
+            }
+        } else {
+            this.requestPiece(socket, message, pieces, queue)
+        }
+    }
+
+    private requestPiece(socekt, message, pieces, queue) {
+        if (queue.choked) { return undefined }
+        while (queue.length()) {
+            const pieceBlock = queue.deque()
+            if (pieces.needed(pieceBlock)) {
+                socekt.write(message.buildRequest(pieceBlock))
+                pieces.addRequested(pieceBlock)
+                break
+            }
+        }
     }
 }

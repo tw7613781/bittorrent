@@ -21,10 +21,12 @@ export class Client {
 
     private id: Buffer
     private torrentParser: TorrentParser
+    private activaConnection: number
 
     constructor(torrentParser: TorrentParser) {
         this.id = this.getId()
         this.torrentParser = torrentParser
+        this.activaConnection = 0
     }
 
     public getId() {
@@ -42,14 +44,22 @@ export class Client {
         const peers = await this.getAllPeers()
         logger.info("Starting to connect all peers to get pieces")
         peers.forEach( (peer) => {
+            this.activaConnection++
             this.download(peer, message, pieces, file)
         })
+    }
+
+    public showConnection() {
+        logger.info(`Current connection peers: ${this.activaConnection}`)
     }
 
     private download(peer, message, pieces, file) {
         const socket = new net.Socket()
         socket.on("error", (err) => {
             logger.warn(`Connecting failed due to: ${err}`)
+        })
+        socket.on("close", () => {
+            this.activaConnection--
         })
         socket.connect( peer.port, peer.ip, () => {
             logger.info(`connected with ${peer.ip}:${peer.port}`)
@@ -96,7 +106,7 @@ export class Client {
         for (let i = 0 ; i < uniquePeers.length; i++) {
             logger.info(`peer ${i} => ${uniquePeers[i].ip}:${uniquePeers[i].port}`)
         }
-        return peers
+        return uniquePeers
     }
 
     // initial tiemout should be 15 seconds, n should be 1, repeat 2 times.
@@ -319,6 +329,7 @@ export class Client {
 
     private haveHandler(socket, pieces, queue, payload: Buffer, message: Message) {
         if (payload) {
+            logger.fatal("have msg payload")
             const pieceIndex = payload.readUInt32BE(0)
             const queueEmpty = queue.length === 0
             queue.queue(pieceIndex)
@@ -331,6 +342,7 @@ export class Client {
     private bitfieldHandler(socket, pieces, queue, payload: Buffer, message: Message) {
         const queueEmpty = queue.length === 0
         if (payload) {
+            logger.fatal("bitfield msg payload")
             payload.forEach( (byte, i) => {
                 for (let j = 0; j < 8; j++) {
                     if (byte % 2) { queue.queue(i * 8 + 7 - j) }
@@ -342,6 +354,7 @@ export class Client {
     }
 
     private pieceHandler(socket, pieces, queue, message, file, pieceResp) {
+        logger.fatal("piece msg")
         pieces.printPercentDone()
         pieces.addReceived(pieceResp)
 
@@ -364,6 +377,7 @@ export class Client {
     }
 
     private requestPiece(socekt, message, pieces, queue: Queue) {
+        logger.fatal("request piece")
         if (queue.choked) { return undefined }
         while (queue.length()) {
             const pieceBlock = queue.deque()

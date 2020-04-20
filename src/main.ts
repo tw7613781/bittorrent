@@ -28,6 +28,9 @@ async function main() {
     torrentParser.show()
     const client = new Client(torrentParser)
     const message = new Message(client, torrentParser)
+    setInterval( () => {
+        client.showConnection()
+    }, 1000)
     await client.downloadAll(message, "file")
 }
 

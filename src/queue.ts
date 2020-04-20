@@ -1,10 +1,9 @@
 import { BLOCK_LEN, TorrentParser } from "./torrent-parser"
 
 export class Queue {
-
+    public choked: boolean
     private tp: TorrentParser
     private q
-    private choked: boolean
     constructor(tp: TorrentParser) {
         this.tp = tp
         this.q = []

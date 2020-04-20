@@ -12,7 +12,10 @@ export function group(buf: Buffer, groupSize): Buffer[] {
     return groups
 }
 
-export function removeDuplicats(peers) {
+// remove duplicated IP and zero IP
+export function sanitizeIP(peers) {
     // tslint:disable-next-line: max-line-length
-    return peers.filter( (peer, index, self) => index === self.findIndex( (p) => p.ip === peer.ip && p.port === peer.port ) )
+    return peers.filter( (peer, index, self) => {
+        return index === self.findIndex( (p) => p.ip === peer.ip && p.port === peer.port ) && peer.ip !== "0.0.0.0"
+    })
 }

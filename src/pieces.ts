@@ -1,4 +1,7 @@
+import { getLogger } from "log4js"
 import { BLOCK_LEN, TorrentParser } from "./torrent-parser"
+
+const logger = getLogger("Pieces")
 
 export class Pieces {
 
@@ -48,6 +51,6 @@ export class Pieces {
 
         const percent = Math.floor(downloaded / total * 100)
 
-        process.stdout.write("progress: " + percent + "%\r")
+        logger.info("progress: " + percent + "%\r")
     }
 }

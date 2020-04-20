@@ -12,7 +12,7 @@ import * as utils from "./utils"
 
 // tslint:disable-next-line: no-empty
 const noop = () => {}
-const logger = getLogger("getPeers")
+const logger = getLogger("Client")
 
 // GL stands for Glosfer, 0001 is the version
 const clientName = "-GL0001-"
@@ -40,6 +40,7 @@ export class Client {
         const pieces = new Pieces(this.torrentParser)
         const file = fs.openSync(path, "w")
         const peers = await this.getAllPeers()
+        logger.info("Starting to connect all peers to get pieces")
         peers.forEach( (peer) => {
             this.download(peer, message, pieces, file)
         })
@@ -48,7 +49,7 @@ export class Client {
     private download(peer, message, pieces, file) {
         const socket = new net.Socket()
         socket.on("error", (err) => {
-            logger.warn(err)
+            logger.warn(`Connecting failed due to: ${err}`)
         })
         socket.connect( peer.port, peer.ip, () => {
             logger.info(`connected with ${peer.ip}:${peer.port}`)
@@ -89,11 +90,11 @@ export class Client {
             throw new Error("There are no peers info returned")
         }
 
-        const uniquePeers = utils.removeDuplicats(peers)
+        const uniquePeers = utils.sanitizeIP(peers)
         logger.info(`unique peers ${uniquePeers.length}`)
 
         for (let i = 0 ; i < uniquePeers.length; i++) {
-            logger.debug(`peer ${i} => ${uniquePeers[i].ip}:${uniquePeers[i].port}`)
+            logger.info(`peer ${i} => ${uniquePeers[i].ip}:${uniquePeers[i].port}`)
         }
         return peers
     }
@@ -283,7 +284,7 @@ export class Client {
     }
 
     private isHandshake(msg) {
-        return msg.length === msg.readUInt8(0) + 49 && msg.toString("uft8", 1, 20) === "BitTorrent protocol"
+        return msg.length === msg.readUInt8(0) + 49 && msg.toString("utf8", 1, 20) === "BitTorrent protocol"
     }
 
     private parse(msg) {
@@ -313,27 +314,31 @@ export class Client {
 
     private unchokeHandler(socket, pieces, queue, message) {
         queue.choked = false
-        this.requestPiece(socket, pieces, queue, message)
+        this.requestPiece(socket, message, pieces, queue)
     }
 
     private haveHandler(socket, pieces, queue, payload: Buffer, message: Message) {
-        const pieceIndex = payload.readUInt32BE(0)
-        const queueEmpty = queue.length === 0
-        queue.queue(pieceIndex)
-        if (queueEmpty) {
-            this.requestPiece(socket, message, pieces, queue)
+        if (payload) {
+            const pieceIndex = payload.readUInt32BE(0)
+            const queueEmpty = queue.length === 0
+            queue.queue(pieceIndex)
+            if (queueEmpty) {
+                this.requestPiece(socket, message, pieces, queue)
+            }
         }
     }
 
     private bitfieldHandler(socket, pieces, queue, payload: Buffer, message: Message) {
         const queueEmpty = queue.length === 0
-        payload.forEach( (byte, i) => {
-            for (let j = 0; j < 8; j++) {
-                if (byte % 2) { queue.queue(i * 8 + 7 - j) }
-                byte = Math.floor(byte / 2)
-            }
-        })
-        if (queueEmpty) { this.requestPiece(socket, message, pieces, queue) }
+        if (payload) {
+            payload.forEach( (byte, i) => {
+                for (let j = 0; j < 8; j++) {
+                    if (byte % 2) { queue.queue(i * 8 + 7 - j) }
+                    byte = Math.floor(byte / 2)
+                }
+            })
+            if (queueEmpty) { this.requestPiece(socket, message, pieces, queue) }
+        }
     }
 
     private pieceHandler(socket, pieces, queue, message, file, pieceResp) {
@@ -342,7 +347,7 @@ export class Client {
 
         const offset = pieceResp.index * this.torrentParser.torrent.info["piece length"] + pieceResp.begin
         fs.write(file, pieceResp.block, 0, pieceResp.block.length, offset, () => {
-            logger.debug("write to file")
+            logger.info("write to file")
         })
 
         if (pieces.isDone()) {
@@ -358,7 +363,7 @@ export class Client {
         }
     }
 
-    private requestPiece(socekt, message, pieces, queue) {
+    private requestPiece(socekt, message, pieces, queue: Queue) {
         if (queue.choked) { return undefined }
         while (queue.length()) {
             const pieceBlock = queue.deque()

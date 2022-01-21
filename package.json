@@ -35,6 +35,6 @@
   "dependencies": {
     "bencode": "^2.0.1",
     "bignum": "^0.13.1",
-    "log4js": "^6.1.2"
+    "log4js": "^6.4.0"
   }
 }
